@@ -1,0 +1,123 @@
+"""Бинарная классификация оттока (churn) — мост от описательной аналитики
+(LTV/cohort retention в sql/marts.sql) к предиктивному ML. Датасет: ml/data/churn_features.csv
+(см. ml/build_features.py). Обучаются Logistic Regression и Random Forest,
+сравниваются по ROC-AUC/PR-AUC, печатается важность признаков обеих моделей.
+
+days_since_last_order НЕ используется как фичи — это то же самое поле,
+из которого построен label churned (target leakage)."""
+from pathlib import Path
+
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+from sklearn.compose import ColumnTransformer
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import (
+    average_precision_score,
+    classification_report,
+    roc_auc_score,
+    roc_curve,
+)
+from sklearn.model_selection import train_test_split
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import OneHotEncoder, StandardScaler
+
+DATA_PATH = Path(__file__).parent / "data" / "churn_features.csv"
+PLOTS_DIR = Path(__file__).parent / "plots"
+
+NUMERIC_FEATURES = ["tenure_days", "total_orders", "total_revenue", "avg_order_value",
+                     "first_order_gap_days", "order_frequency"]
+CATEGORICAL_FEATURES = ["channel"]
+
+MODELS = {
+    "Logistic Regression": LogisticRegression(class_weight="balanced", max_iter=1000),
+    "Random Forest": RandomForestClassifier(class_weight="balanced", n_estimators=300, random_state=42),
+}
+
+
+def make_preprocessor() -> ColumnTransformer:
+    return ColumnTransformer([
+        ("num", StandardScaler(), NUMERIC_FEATURES),
+        ("cat", OneHotEncoder(handle_unknown="ignore"), CATEGORICAL_FEATURES),
+    ])
+
+
+def plot_roc_curves(results: dict, output_path: Path) -> None:
+    fig, ax = plt.subplots(figsize=(6, 6))
+    colors = {"Logistic Regression": "#1f77b4", "Random Forest": "#2ca02c"}
+
+    for name, r in results.items():
+        ax.plot(r["fpr"], r["tpr"], color=colors[name], linewidth=2,
+                label=f"{name} (AUC={r['roc_auc']:.2f})")
+
+    ax.plot([0, 1], [0, 1], linestyle="--", color="gray", linewidth=1, label="Random (AUC=0.50)")
+    ax.set_xlabel("False Positive Rate")
+    ax.set_ylabel("True Positive Rate")
+    ax.set_title("ROC — churn prediction")
+    ax.legend(loc="lower right")
+    ax.grid(alpha=0.3)
+    fig.tight_layout()
+    fig.savefig(output_path, dpi=150)
+    print(f"Saved {output_path}")
+
+
+def plot_feature_importance(names: list[str], importances: np.ndarray, title: str, output_path: Path) -> None:
+    order = np.argsort(importances)
+    fig, ax = plt.subplots(figsize=(7, 0.4 * len(names) + 1.5))
+    colors = ["#2ca02c" if v >= 0 else "#d62728" for v in importances[order]]
+    ax.barh(np.array(names)[order], importances[order], color=colors)
+    ax.set_title(title)
+    ax.axvline(0, color="black", linewidth=0.8)
+    ax.grid(axis="x", linestyle="--", alpha=0.4)
+    fig.tight_layout()
+    fig.savefig(output_path, dpi=150)
+    print(f"Saved {output_path}")
+
+
+def main() -> None:
+    df = pd.read_csv(DATA_PATH)
+    X = df[NUMERIC_FEATURES + CATEGORICAL_FEATURES]
+    y = df["churned"]
+
+    print(f"n={len(df)}, churn rate={y.mean():.1%} (class imbalance handled via class_weight='balanced')\n")
+
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.25, stratify=y, random_state=42
+    )
+
+    PLOTS_DIR.mkdir(exist_ok=True)
+    roc_results = {}
+
+    for name, model in MODELS.items():
+        pipeline = Pipeline([("preprocess", make_preprocessor()), ("model", model)])
+        pipeline.fit(X_train, y_train)
+
+        proba = pipeline.predict_proba(X_test)[:, 1]
+        preds = pipeline.predict(X_test)
+
+        roc_auc = roc_auc_score(y_test, proba)
+        pr_auc = average_precision_score(y_test, proba)
+        fpr, tpr, _ = roc_curve(y_test, proba)
+        roc_results[name] = {"fpr": fpr, "tpr": tpr, "roc_auc": roc_auc}
+
+        print(f"=== {name} ===")
+        print(f"ROC-AUC: {roc_auc:.3f}  |  PR-AUC: {pr_auc:.3f}")
+        print(classification_report(y_test, preds, zero_division=0))
+
+        feature_names = [n.removeprefix("num__").removeprefix("cat__")
+                          for n in pipeline.named_steps["preprocess"].get_feature_names_out()]
+        if name == "Random Forest":
+            importances = pipeline.named_steps["model"].feature_importances_
+            plot_feature_importance(list(feature_names), importances,
+                                     "Random Forest — feature importance", PLOTS_DIR / "rf_feature_importance.png")
+        else:
+            coefs = pipeline.named_steps["model"].coef_[0]
+            plot_feature_importance(list(feature_names), coefs,
+                                     "Logistic Regression — coefficients (standardized)", PLOTS_DIR / "lr_coefficients.png")
+
+    plot_roc_curves(roc_results, PLOTS_DIR / "roc_curves.png")
+
+
+if __name__ == "__main__":
+    main()
