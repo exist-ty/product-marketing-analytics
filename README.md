@@ -1,5 +1,7 @@
 # Product & Marketing Analytics
 
+![Tests](https://github.com/exist-ty/product-marketing-analytics/actions/workflows/test.yml/badge.svg)
+
 Пет-проект уровня Data/Product Analyst: SQL-витрины и Python-визуализация поверх
 staging-слоя, который готовит соседний ETL-репозиторий
 [`etl-portfolio`](../etl-portfolio). Разделение осознанное: там — приём и
