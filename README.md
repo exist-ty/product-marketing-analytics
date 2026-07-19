@@ -4,7 +4,7 @@
 
 Пет-проект уровня Data/Product Analyst: SQL-витрины и Python-визуализация поверх
 staging-слоя, который готовит соседний ETL-репозиторий
-[`etl-portfolio`](../etl-portfolio). Разделение осознанное: там — приём и
+[`etl-portfolio`](https://github.com/exist-ty/etl-portfolio). Разделение осознанное: там — приём и
 очистка сырых данных, здесь — их анализ и бизнес-интерпретация.
 
 Три вопроса, на которые отвечает этот репозиторий:
@@ -170,7 +170,7 @@ X%" реалистично оценить в деньгах уже сейчас,
 модели предельной отдачи (marginal ROMI) по каждому каналу.
 
 **Кросс-репо наблюдение.** `referral` — лучший канал по ROMI здесь, но в
-[`support-triage-llm`](../support-triage-llm) `channel_triage_summary.py`
+[`support-triage-llm`](https://github.com/exist-ty/support-triage-llm) `channel_triage_summary.py`
 показывает у `referral` и наибольшую долю негативных/high-priority обращений
 в поддержку (25% против 10-12.5% у остальных каналов). На n=45 обращений это
 не статистически значимый вывод (см. честную оговорку в том репозитории), но
