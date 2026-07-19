@@ -270,6 +270,24 @@ churn-скору" при отсутствии сигнала не отличае
 проверить, что `channel`/поведенческие признаки вообще коррелируют с
 оттоком, и только потом обучать модель под кампанию, а не наоборот.
 
+### Трекинг экспериментов (MLflow)
+
+`ml/train_churn_model.py` логирует каждую модель как отдельный MLflow run
+(experiment `churn-prediction`): параметры (`model`, `random_state`,
+`n_estimators` для RF), метрики (`roc_auc`, `pr_auc`, `accuracy`), саму
+модель (`mlflow.sklearn.log_model`) и confusion matrix как PNG-артефакт.
+
+MLflow — общий сервис в `docker-compose.yml` [хаба](https://github.com/exist-ty/Nikolay-Kolesnikov-Data-Engineering-Applied-ML-LLM-Portfolio-Hub)
+(`docker compose up -d mlflow`, UI на `http://localhost:5501`), не в этом
+репозитории — тот же приём, что и с самим Airflow. `MLFLOW_TRACKING_URI`
+по умолчанию — `http://localhost:5501`, переопределяется на `http://mlflow:5501`
+внутри контейнеров Airflow (общая docker-compose сеть).
+
+Версия клиента (`mlflow==2.19.0`) зафиксирована **ровно** под тег образа
+сервера — на живом прогоне более новый клиент (3.14.0, дефолтный `pip install`
+без пина на момент разработки) слал запрос к `/api/2.0/mlflow/logged-models`,
+которого нет в образе `v2.19.0`, и падал с 404 при завершении run.
+
 ## OLAP-слой: ClickHouse рядом с Postgres (`clickhouse/`)
 
 Все витрины выше — Postgres VIEW: пересчитываются целиком на каждый SELECT.
