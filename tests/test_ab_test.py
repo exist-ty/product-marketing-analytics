@@ -1,3 +1,4 @@
+import numpy as np
 import pytest
 
 from ab_test.analyze_experiment import (
@@ -7,6 +8,7 @@ from ab_test.analyze_experiment import (
     srm_check,
     two_proportion_ztest,
 )
+from ab_test.simulate_power_validation import simulate_empirical_power
 
 
 def test_srm_check_passes_on_balanced_split():
@@ -51,3 +53,20 @@ def test_achieved_power_reaches_target_at_required_sample_size():
     # required_sample_size_per_arm ceils to a whole number of customers, so
     # the resulting power lands just at (not strictly above) the 80% target.
     assert power == pytest.approx(0.80, abs=1e-2)
+
+
+def test_simulate_empirical_power_matches_theoretical_formula():
+    # Валидирует саму формулу achieved_power через независимый метод
+    # (симуляцию), а не берёт результат на веру — если формула где-то
+    # неверна, эмпирическая и теоретическая мощность разойдутся.
+    rng = np.random.default_rng(1)
+    n = 300
+    theoretical = achieved_power(0.08, 0.12, n)
+    empirical = simulate_empirical_power(0.08, 0.12, n, 500, rng)
+    assert empirical == pytest.approx(theoretical, abs=0.05)
+
+
+def test_simulate_empirical_power_near_one_for_large_effect_and_sample():
+    rng = np.random.default_rng(0)
+    power = simulate_empirical_power(0.05, 0.5, 50, 200, rng)
+    assert power > 0.95
