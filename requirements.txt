@@ -9,3 +9,4 @@ jupyter>=1.0
 nbconvert>=7.16
 scikit-learn>=1.4
 clickhouse-connect>=0.7
+scipy>=1.11
